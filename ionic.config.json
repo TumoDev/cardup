@@ -1,0 +1,7 @@
+{
+  "name": "menuai",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}

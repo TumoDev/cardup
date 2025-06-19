@@ -1,2 +1,47 @@
-/* For information on how to create your own theme, please see:
-http://ionicframework.com/docs/theming/ */
+@import "tailwindcss";
+
+:root {
+  /* Paleta clara principal */
+  --ion-color-primary: #4A90E2;
+  /* Azul suave */
+  --ion-color-primary-rgb: 74, 144, 226;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #4180C6;
+  /* Azul más oscuro */
+  --ion-color-primary-tint: #5C9CE6;
+  /* Azul más claro */
+
+  /* Colores secundarios */
+  --ion-color-secondary: #FFB85C;
+  /* Naranja pastel */
+  --ion-color-secondary-rgb: 255, 184, 92;
+  --ion-color-secondary-contrast: #2A2A2A;
+  --ion-color-secondary-shade: #E0A252;
+  --ion-color-secondary-tint: #FFC16D;
+
+  /* Colores de fondo */
+  --ion-background-color: #F8F9FA;
+  /* Fondo principal */
+  --ion-item-background: #FFFFFF;
+  /* Fondo de elementos */
+  --ion-toolbar-background: #FFFFFF;
+  /* Barra de herramientas */
+
+  /* Textos */
+  --ion-text-color: #2A2A2A;
+  /* Texto principal */
+  --ion-text-color-rgb: 42, 42, 42;
+  --ion-color-step-600: #666666;
+  /* Texto secundario */
+
+  /* Bordes */
+  --ion-border-color: #E0E0E0;
+  /* Color de bordes */
+  --ion-border-radius: 12px;
+  /* Radio base */
+
+  /* Tipografía */
+  --ion-font-family: 'Inter', -apple-system, BlinkMacSystemFont,
+    'Helvetica Neue', 'Segoe UI', sans-serif;
+}

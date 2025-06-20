@@ -10,4 +10,3 @@ export { default as MenuPage } from './MenuPage'
 
 export { default as ProductoPage } from './ProductoPage'
 
-export { default as PruebaModeloPage } from './PruebaModeloPage'

@@ -30,7 +30,7 @@ import '@ionic/react/css/display.css';
 
 /* Theme variables */
 import './theme/variables.css';
-import { LoginPage, NotFoundPage, RegisterPage, Dashboard, RestaurantSelectionPage, ProductoPage, Home, MenuPage, PruebaModeloPage } from './pages';
+import { LoginPage, NotFoundPage, RegisterPage, Dashboard, RestaurantSelectionPage, ProductoPage, Home, MenuPage } from './pages';
 import '@google/model-viewer';
 
 setupIonicReact();
@@ -53,7 +53,6 @@ const App: React.FC = () => (
         <Route exact path="/404" component={NotFoundPage} />
         <Route exact path="/producto/:id" component={ProductoPage} />
 
-        <Route exact path="/prueba-modelo" component={PruebaModeloPage} />
 
       </IonRouterOutlet>
     </IonReactRouter>

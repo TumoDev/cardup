@@ -14,7 +14,7 @@ import {
   IonSpinner,
   IonAlert,
 } from '@ionic/react';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '../utils/supabase';
 import { User as AuthUser } from '@supabase/supabase-js';
 
 interface ManagerProfile {

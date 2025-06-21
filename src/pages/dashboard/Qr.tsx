@@ -1,3 +1,5 @@
+// src/pages/Dashboard/Qr.tsx (COMPLETO Y CORREGIDO)
+
 import React, { useState, useEffect } from 'react';
 import {
   IonButton,
@@ -7,37 +9,38 @@ import {
   IonIcon,
 } from '@ionic/react';
 import { QRCodeSVG } from 'qrcode.react';
-// Se importan los iconos necesarios para los botones de acción
 import { copyOutline, downloadOutline, checkmarkDoneOutline } from 'ionicons/icons';
 
-const QrPage: React.FC = () => {
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+// 1. Definimos las props que el componente recibirá
+interface QrPageProps {
+  restaurantId: string | null;
+}
+
+const QrPage: React.FC<QrPageProps> = ({ restaurantId }) => { // 2. Usamos las props
+  // Se elimina el estado local `restaurantId`
   const [qrValue, setQrValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Estado para dar feedback al usuario cuando copia el enlace
   const [copySuccess, setCopySuccess] = useState(false);
 
   const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
 
+  // 3. El efecto ahora depende de `restaurantId` que viene de las props
   useEffect(() => {
     setIsLoading(true);
     setError(null);
     setQrValue('');
 
-    const storedId = localStorage.getItem('restaurantId');
-
-    if (storedId) {
-      setRestaurantId(storedId);
-      const urlToEncode = `${baseUrl}/menu/${storedId}`;
+    // Ya no leemos de localStorage, usamos la prop directamente
+    if (restaurantId) {
+      const urlToEncode = `${baseUrl}/menu/${restaurantId}`;
       setQrValue(urlToEncode);
     } else {
       setError("No se encontró un restaurante seleccionado.");
     }
 
     setIsLoading(false);
-  }, [baseUrl]);
+  }, [restaurantId, baseUrl]); // <-- CAMBIO CLAVE: El efecto se ejecuta si `restaurantId` cambia
 
   const handleDownloadQR = () => {
     if (!qrValue || !restaurantId) return;
@@ -61,10 +64,9 @@ const QrPage: React.FC = () => {
     try {
       await navigator.clipboard.writeText(qrValue);
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000); // El feedback dura 2 segundos
+      setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       console.error('Error al copiar el enlace: ', err);
-      // Opcional: mostrar un toast de error si la copia falla.
     }
   };
 

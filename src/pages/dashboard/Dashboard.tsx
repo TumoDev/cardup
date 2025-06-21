@@ -1,9 +1,12 @@
+// src/pages/dashboard/Dashboard.tsx (COMPLETO Y CORREGIDO)
+
 import React, { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar, IonMenu,
   IonButtons, IonMenuButton, IonPage, IonList, IonItem, IonLabel, IonIcon,
-  IonSpinner, IonAvatar, IonText, IonCard, IonCardContent, IonToast
+  IonSpinner, IonAvatar, IonText, IonCard, IonCardContent, IonToast,
+  useIonViewWillEnter // <-- 1. IMPORTAR EL HOOK
 } from '@ionic/react';
 import { menuController } from '@ionic/core';
 import {
@@ -11,10 +14,10 @@ import {
 } from 'ionicons/icons';
 import * as restaurantService from '../../services/restaurantService';
 import type { Restaurant } from '../../services/restaurantService';
-import { logout } from '../../services/authService'; // Re-importamos el servicio de logout
+import { logout } from '../../services/authService';
 
 import MenuManagement from './MenuManagement';
-import Qr from './Qr';
+import QrPage from './Qr';
 import RestaurantSettings from './RestaurantSettings';
 
 type ActiveTab = 'menu' | 'qr' | 'restaurant-settings';
@@ -47,7 +50,9 @@ const Dashboard: React.FC = () => {
 
   const history = useHistory();
 
-  useEffect(() => {
+  // <-- 2. REEMPLAZAR useEffect CON useIonViewWillEnter
+  // Este bloque de código ahora se ejecutará CADA VEZ que entres a la página del Dashboard.
+  useIonViewWillEnter(() => {
     const loadRestaurantDetails = async () => {
       setIsLoading(true);
       const storedRestaurantId = localStorage.getItem('restaurantId');
@@ -74,7 +79,7 @@ const Dashboard: React.FC = () => {
     };
 
     loadRestaurantDetails();
-  }, [history]);
+  }); // <-- Nota que no necesita un array de dependencias.
 
   const navigateAndCloseMenu = (path: string) => {
     menuController.close('dashboardMenu');
@@ -100,25 +105,27 @@ const Dashboard: React.FC = () => {
   };
 
   const renderTitle = () => ({
-    menu: 'Gestión de Menú',
-    // ===== ¡CORRECCIÓN #2! =====
-    // La clave ahora está entre comillas para ser una sintaxis válida.
+    'menu': 'Gestión de Menú',
     'restaurant-settings': 'Configuración de Restaurante',
-    qr: 'Mi Código QR',
+    'qr': 'Mi Código QR',
   }[activeTab] || 'Dashboard');
 
   const menuItems = [
     { label: 'Gestión de Menú', tab: 'menu' as ActiveTab, icon: restaurantOutline },
     { label: 'Mi Código QR', tab: 'qr' as ActiveTab, icon: qrCodeOutline },
-    // ===== ¡CORRECCIÓN #3! =====
-    // El 'tab' ahora coincide con el tipo y la lógica de renderizado.
     { label: 'Configuración', tab: 'restaurant-settings' as ActiveTab, icon: personCircleOutline },
   ];
+
+  const tabComponents: Record<ActiveTab, React.ReactNode> = {
+    'menu': <MenuManagement restaurantId={restaurant?.id || null} />,
+    'qr': <QrPage restaurantId={restaurant?.id || null} />,
+    'restaurant-settings': <RestaurantSettings restaurantId={restaurant?.id || null} />,
+  };
 
   return (
     <>
       <IonMenu contentId="dashboard-main-content" menuId="dashboardMenu">
-        {/* ... (Header y contenido del menú no cambian) ... */}
+        {/* ... El resto del componente se mantiene igual ... */}
         <IonHeader className="ion-no-border">
           <IonToolbar style={{ '--background': 'transparent' }}>
             {isLoading ? (
@@ -196,15 +203,17 @@ const Dashboard: React.FC = () => {
           </IonToolbar>
         </IonHeader>
 
-        <IonContent fullscreen className="ion-padding bg-gray-100">
-          <IonCard className="shadow-lg rounded-2xl h-full">
+        <IonContent fullscreen className="bg-gray-100 p-4 md:p-6">
+          <IonCard className="shadow-lg rounded-2xl m-0">
             <IonCardContent className="p-4 md:p-6">
-              <>
-                {activeTab === 'menu' && <MenuManagement />}
-                {activeTab === 'qr' && <Qr />}
-                {activeTab === 'restaurant-settings' && <RestaurantSettings />}
-
-              </>
+              {isLoading ? (
+                <div className="flex justify-center items-center p-8">
+                  <IonSpinner name="crescent" />
+                </div>
+              ) : (
+                tabComponents[activeTab]
+              )
+              }
             </IonCardContent>
           </IonCard>
         </IonContent>
@@ -215,7 +224,7 @@ const Dashboard: React.FC = () => {
         message={toast.message}
         duration={3000}
         onDidDismiss={() => setToast({ isOpen: false, message: '', color: 'danger' })}
-        color={toast.color}
+        color={toast.color as any}
         position="top"
       />
     </>

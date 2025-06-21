@@ -1,14 +1,15 @@
+
 import React, { useState, useEffect, ChangeEvent, useRef } from 'react';
 import {
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+  IonCardHeader, IonCardTitle, IonCardContent,
   IonGrid, IonRow, IonCol, IonInput, IonTextarea,
   IonSelect, IonSelectOption, IonButton, IonList, IonItem,
-  IonLabel, IonIcon, IonSpinner, IonText, IonAlert,
+  IonLabel, IonIcon, IonSpinner, IonAlert,
   IonAvatar, IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonContent, IonToast
 } from '@ionic/react';
 import {
-  addOutline, createOutline, trashOutline, imageOutline,
-  closeCircleOutline, cubeOutline, checkmarkCircle, alertCircle
+  addOutline, createOutline, trashOutline,
+  cubeOutline, checkmarkCircle, alertCircle
 } from 'ionicons/icons';
 import * as productService from '../../services/productService';
 import type { Product, NewProductData, ProductFiles, UpdateProductData } from '../../services/productService';
@@ -18,7 +19,6 @@ const initialNewProductState: NewProductData = {
   name: '', description: '', price: 0, category: ''
 };
 
-// Componente reutilizable para los campos del formulario, manteniendo la estética.
 const FormField: React.FC<{ label: string; name: string; value: any; onIonChange: (e: any) => void; type?: any; placeholder?: string; children?: React.ReactNode; component?: 'input' | 'textarea' | 'select' }> =
   ({ label, name, value, onIonChange, type = 'text', placeholder = '', children, component = 'input' }) => {
     const commonProps = {
@@ -35,22 +35,20 @@ const FormField: React.FC<{ label: string; name: string; value: any; onIonChange
     );
   };
 
+interface MenuManagementProps {
+  restaurantId: string | null;
+}
 
-const MenuManagement: React.FC = () => {
+const MenuManagement: React.FC<MenuManagementProps> = ({ restaurantId }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [newProduct, setNewProduct] = useState<NewProductData>(initialNewProductState);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
 
-  // Estado para el feedback
   const [toast, setToast] = useState({ isOpen: false, message: '', color: 'success', icon: checkmarkCircle });
-
-  // Estados para modales y alertas
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // Estados y refs para archivos
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [usdzFile, setUsdzFile] = useState<File | null>(null);
   const [glbFile, setGlbFile] = useState<File | null>(null);
@@ -62,19 +60,21 @@ const MenuManagement: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const id = localStorage.getItem('restaurantId');
-      setRestaurantId(id);
-      if (id) {
+      if (restaurantId) {
         try {
-          setProducts(await productService.getProductsByRestaurant(id));
-        } catch (err: any) { setToast({ isOpen: true, message: err.message, color: 'danger', icon: alertCircle }); }
+          const fetchedProducts = await productService.getProductsByRestaurant(restaurantId);
+          setProducts(fetchedProducts);
+        } catch (err: any) {
+          setProducts([]);
+          showErrorToast(err.message);
+        }
       } else {
-        setToast({ isOpen: true, message: 'ID de restaurante no encontrado.', color: 'danger', icon: alertCircle });
+        setProducts([]);
       }
       setLoading(false);
     };
     loadData();
-  }, []);
+  }, [restaurantId]);
 
   const handleInputChange = (e: any, stateSetter: React.Dispatch<React.SetStateAction<any>>) => {
     const { name, value } = e.target;
@@ -91,6 +91,9 @@ const MenuManagement: React.FC = () => {
     setImageFile(null);
     setUsdzFile(null);
     setGlbFile(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (usdzInputRef.current) usdzInputRef.current.value = '';
+    if (glbInputRef.current) glbInputRef.current.value = '';
   };
 
   const showSuccessToast = (message: string) => setToast({ isOpen: true, message, color: 'success', icon: checkmarkCircle });
@@ -102,7 +105,11 @@ const MenuManagement: React.FC = () => {
 
     setFormLoading(true);
     try {
-      const files: ProductFiles = { image: imageFile || undefined, modelUsdz: usdzFile || undefined, modelGlb: glbFile || undefined };
+      const files: ProductFiles = {
+        image: imageFile || undefined,
+        modelUsdz: usdzFile || undefined,
+        modelGlb: glbFile || undefined
+      };
       const createdProduct = await productService.createProduct(restaurantId, newProduct, files);
       setProducts(prev => [createdProduct, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
       resetForm();
@@ -131,7 +138,7 @@ const MenuManagement: React.FC = () => {
     setFormLoading(true);
     try {
       await productService.deleteProduct(productToDelete);
-      setProducts(prev => prev.filter(p => p.id !== productToDelete.id));
+      setProducts(prev => prev.filter(p => p.id !== productToDelete!.id));
       showSuccessToast("Producto eliminado.");
     } catch (err: any) { showErrorToast(err.message); }
     finally { setFormLoading(false); setProductToDelete(null); }
@@ -142,8 +149,8 @@ const MenuManagement: React.FC = () => {
   return (
     <>
       <style>{`.custom-input .native-input { padding: 1rem 0.5rem !important; }`}</style>
-      <IonToast isOpen={toast.isOpen} message={toast.message} duration={3000} onDidDismiss={() => setToast({ ...toast, isOpen: false })} color={toast.color} icon={toast.icon} position="top" />
-      <IonAlert isOpen={!!productToDelete} onDidDismiss={() => setProductToDelete(null)} header="Confirmar Eliminación" message={`¿Seguro que quieres eliminar "${productToDelete?.name}"?`} buttons={[{ text: 'Cancelar', role: 'cancel' }, { text: 'Eliminar', cssClass: 'ion-color-danger', handler: handleDeleteProduct }]} />
+      <IonToast isOpen={toast.isOpen} message={toast.message} duration={3000} onDidDismiss={() => setToast({ ...toast, isOpen: false })} color={toast.color as any} icon={toast.icon} position="top" />
+      <IonAlert isOpen={!!productToDelete} onDidDismiss={() => setProductToDelete(null)} header="Confirmar Eliminación" message={`¿Seguro que quieres eliminar "${productToDelete?.name}"?`} buttons={[{ text: 'Cancelar', role: 'cancel' }, { text: 'Eliminar', handler: handleDeleteProduct, cssClass: 'ion-color-danger' }]} />
 
       <IonModal isOpen={!!editingProduct} onDidDismiss={() => setEditingProduct(null)}>
         <IonHeader><IonToolbar><IonTitle>Editar: {editingProduct?.name}</IonTitle><IonButtons slot="end"><IonButton onClick={() => setEditingProduct(null)}>Cerrar</IonButton></IonButtons></IonToolbar></IonHeader>
@@ -168,28 +175,28 @@ const MenuManagement: React.FC = () => {
           <form onSubmit={e => { e.preventDefault(); handleAddProduct(); }}>
             <IonGrid>
               <IonRow>
-                <IonCol size="12" size-md="6"><FormField label="Nombre" name="name" value={newProduct.name} onIonChange={e => handleInputChange(e, setNewProduct)} /></IonCol>
-                <IonCol size="12" size-md="6"><FormField label="Precio" name="price" type="number" value={newProduct.price} onIonChange={e => handleInputChange(e, setNewProduct)} /></IonCol>
+                <IonCol size="12" size-md="6"><FormField label="Nombre" name="name" value={newProduct.name} onIonChange={e => handleInputChange(e, setNewProduct)} placeholder="Ej: Lomo Saltado" /></IonCol>
+                <IonCol size="12" size-md="6"><FormField label="Precio" name="price" type="number" value={newProduct.price} onIonChange={e => handleInputChange(e, setNewProduct)} placeholder="Ej: 12.99" /></IonCol>
               </IonRow>
-              <IonRow><IonCol><FormField component="textarea" label="Descripción" name="description" value={newProduct.description || ''} onIonChange={e => handleInputChange(e, setNewProduct)} /></IonCol></IonRow>
+              <IonRow><IonCol><FormField component="textarea" label="Descripción" name="description" value={newProduct.description || ''} onIonChange={e => handleInputChange(e, setNewProduct)} placeholder="Tiernos trozos de lomo con..." /></IonCol></IonRow>
               <IonRow><IonCol><FormField component="select" label="Categoría" name="category" value={newProduct.category} onIonChange={e => handleInputChange(e, setNewProduct)}>
                 <IonSelectOption value="">Seleccione una categoría</IonSelectOption><IonSelectOption value="Platos principales">Platos principales</IonSelectOption><IonSelectOption value="Entrantes">Entrantes</IonSelectOption><IonSelectOption value="Bebidas">Bebidas</IonSelectOption><IonSelectOption value="Postres">Postres</IonSelectOption>
               </FormField></IonCol></IonRow>
-              <IonRow>
-                <IonCol size="12" size-md="4" className="flex flex-col">
-                  <IonButton fill="outline" onClick={() => imageInputRef.current?.click()}>Seleccionar Imagen</IonButton>
-                  {imageFile && <span className="text-sm text-gray-500 mt-2 truncate">{imageFile.name}</span>}
-                  <input ref={imageInputRef} id="productImageInput" type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setImageFile)} />
+              <IonRow className="ion-align-items-center ion-justify-content-center">
+                <IonCol size="12" size-md="4" className="flex flex-col items-center mb-2 md:mb-0">
+                  <IonButton fill="outline" onClick={() => imageInputRef.current?.click()} className="w-full">Seleccionar Imagen</IonButton>
+                  {imageFile && <span className="text-sm text-gray-500 mt-2 truncate max-w-full px-2">{imageFile.name}</span>}
+                  <input ref={imageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setImageFile)} />
                 </IonCol>
-                <IonCol size="12" size-md="4" className="flex flex-col">
-                  <IonButton fill="outline" onClick={() => usdzInputRef.current?.click()}>Seleccionar USDZ</IonButton>
-                  {usdzFile && <span className="text-sm text-gray-500 mt-2 truncate">{usdzFile.name}</span>}
-                  <input ref={usdzInputRef} id="productUsdzInput" type="file" className="hidden" accept=".usdz" onChange={(e) => handleFileChange(e, setUsdzFile)} />
+                <IonCol size="12" size-md="4" className="flex flex-col items-center mb-2 md:mb-0">
+                  <IonButton fill="outline" onClick={() => usdzInputRef.current?.click()} className="w-full">Seleccionar USDZ</IonButton>
+                  {usdzFile && <span className="text-sm text-gray-500 mt-2 truncate max-w-full px-2">{usdzFile.name}</span>}
+                  <input ref={usdzInputRef} type="file" className="hidden" accept=".usdz" onChange={(e) => handleFileChange(e, setUsdzFile)} />
                 </IonCol>
-                <IonCol size="12" size-md="4" className="flex flex-col">
-                  <IonButton fill="outline" onClick={() => glbInputRef.current?.click()}>Seleccionar GLB</IonButton>
-                  {glbFile && <span className="text-sm text-gray-500 mt-2 truncate">{glbFile.name}</span>}
-                  <input ref={glbInputRef} id="productGlbInput" type="file" className="hidden" accept=".glb,.gltf" onChange={(e) => handleFileChange(e, setGlbFile)} />
+                <IonCol size="12" size-md="4" className="flex flex-col items-center">
+                  <IonButton fill="outline" onClick={() => glbInputRef.current?.click()} className="w-full">Seleccionar GLB</IonButton>
+                  {glbFile && <span className="text-sm text-gray-500 mt-2 truncate max-w-full px-2">{glbFile.name}</span>}
+                  <input ref={glbInputRef} type="file" className="hidden" accept=".glb,.gltf" onChange={(e) => handleFileChange(e, setGlbFile)} />
                 </IonCol>
               </IonRow>
               <IonButton type="submit" expand="block" disabled={formLoading} className="mt-6 h-14 font-medium rounded-lg">
@@ -200,34 +207,40 @@ const MenuManagement: React.FC = () => {
         </IonCardContent>
       </div>
 
-      <>
+      <div>
         <IonCardHeader><IonCardTitle className="text-xl">Mis Productos ({products.length})</IonCardTitle></IonCardHeader>
         <IonCardContent>
           {products.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No tienes productos en tu menú. ¡Añade el primero!</div>
           ) : (
-            <IonList lines="full">
+            <IonList lines="none" className="space-y-2">
               {products.map(product => {
-                const imageUrl = product.image_path ? supabase.storage.from('logos').getPublicUrl(product.image_path).data.publicUrl : undefined;
+                // <-- MEJORA DE ESTABILIDAD: Obtenemos la URL y la verificamos antes de usarla.
+                const imageUrl = product.image_path ? supabase.storage.from('logos').getPublicUrl(product.image_path).data.publicUrl : null;
                 return (
-                  <IonItem key={product.id}>
-                    <IonAvatar slot="start" className="w-16 h-16 bg-gray-100 rounded-lg">
-                      {imageUrl ? <img src={imageUrl} alt={product.name} className="object-cover w-full h-full" /> : <IonIcon icon={imageOutline} className="text-3xl text-gray-400" />}
+                  <IonItem key={product.id} className="rounded-lg shadow-sm">
+                    <IonAvatar slot="start" className="w-16 h-16 bg-gray-100 rounded-lg mr-4 flex items-center justify-center">
+                      {/* Ahora, solo mostramos la imagen si la URL es válida */}
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={product.name} className="object-cover w-full h-full" />
+                      ) : (
+                        <IonIcon icon={cubeOutline} className="text-3xl text-gray-400" />
+                      )}
                     </IonAvatar>
                     <IonLabel>
-                      <h2 className="font-bold">{product.name}</h2>
-                      <p>${product.price.toFixed(2)}</p>
-                      <p className="text-sm text-gray-500">{product.category}</p>
+                      <h2 className="font-bold text-gray-800">{product.name}</h2>
+                      <p className="text-green-600 font-semibold">${product.price.toFixed(2)}</p>
+                      <p className="text-sm text-gray-500 capitalize">{product.category}</p>
                     </IonLabel>
                     <IonButton fill="clear" onClick={() => setEditingProduct(product)}><IonIcon slot="icon-only" icon={createOutline} /></IonButton>
                     <IonButton fill="clear" color="danger" onClick={() => setProductToDelete(product)}><IonIcon slot="icon-only" icon={trashOutline} /></IonButton>
                   </IonItem>
-                );
+                )
               })}
             </IonList>
           )}
         </IonCardContent>
-      </>
+      </div>
     </>
   );
 };

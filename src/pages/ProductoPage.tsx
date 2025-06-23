@@ -12,18 +12,24 @@ import {
   IonBackButton,
   IonSpinner,
   IonIcon,
+  IonCard,
+  IonCardContent,
+  IonText,
 } from '@ionic/react';
-import { cubeOutline, alertCircleOutline } from 'ionicons/icons';
+import { cubeOutline, alertCircleOutline, pauseCircleOutline } from 'ionicons/icons';
 import '@google/model-viewer';
 
 import * as productService from '../services/productService';
+import * as restaurantService from '../services/restaurantService';
 import type { Product } from '../services/productService';
+import type { Restaurant } from '../services/restaurantService';
 import { supabase } from '../utils/supabase';
 
 const ProductoPage: React.FC = () => {
   const { id: productId } = useParams<{ id: string }>();
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,12 +44,19 @@ const ProductoPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await productService.getProductById(productId);
-        if (data) {
-          setProduct(data);
-        } else {
+        const productData = await productService.getProductById(productId);
+        if (!productData) {
           throw new Error("El producto que buscas no fue encontrado.");
         }
+
+        // Obtener información del restaurante para validar su estado
+        const restaurantData = await restaurantService.getRestaurantById(productData.id_restaurant);
+        if (!restaurantData) {
+          throw new Error("El restaurante de este producto no fue encontrado.");
+        }
+
+        setProduct(productData);
+        setRestaurant(restaurantData);
       } catch (err: any) {
         setError(err.message || "Ocurrió un error al cargar el modelo.");
       } finally {
@@ -82,6 +95,44 @@ const ProductoPage: React.FC = () => {
           <IonIcon icon={alertCircleOutline} className="text-6xl mb-4" />
           <h2 className="font-bold text-xl">Ocurrió un Problema</h2>
           <p>{error}</p>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
+  // Renderizar mensaje si el restaurante está suspendido
+  if (restaurant?.status === 'notavailable') {
+    return (
+      <IonPage>
+        <IonHeader className="ion-no-border">
+          <IonToolbar>
+            <IonButtons slot="start"><IonBackButton defaultHref="/" /></IonButtons>
+            <IonTitle className="font-bold">{restaurant?.name || 'Restaurante'}</IonTitle>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent fullscreen className="ion-padding bg-gray-50">
+          <div className="flex items-center justify-center min-h-full">
+            <IonCard className="max-w-md mx-auto text-center">
+              <IonCardContent className="p-8">
+                <div className="mb-6">
+                  <IonIcon 
+                    icon={pauseCircleOutline} 
+                    className="text-6xl text-orange-500 mb-4" 
+                  />
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    Restaurante Suspendido
+                  </h2>
+                  <IonText color="medium">
+                    <p className="text-gray-600">
+                      {restaurant.name} está temporalmente suspendido. 
+                      No puedes acceder a sus productos en este momento.
+                    </p>
+                  </IonText>
+                </div>
+              </IonCardContent>
+            </IonCard>
+          </div>
         </IonContent>
       </IonPage>
     );

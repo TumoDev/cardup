@@ -1,5 +1,3 @@
-// En src/pages/MenuPage.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useHistory } from 'react-router-dom';
 import {
@@ -8,20 +6,20 @@ import {
   IonToolbar,
   IonTitle,
   IonContent,
-  IonSegment,        // Re-introducido para las categorías
-  IonSegmentButton,  // Re-introducido para las categorías
+  IonSegment,
+  IonSegmentButton,
   IonLabel,
-  IonSpinner,
-  IonText,
   IonButtons,
   IonBackButton,
   IonIcon,
   IonGrid,
   IonRow,
   IonCol,
-  IonButton
+  IonCard,
+  IonCardContent,
+  IonText,
 } from '@ionic/react';
-import { imageOutline } from 'ionicons/icons';
+import { imageOutline, pauseCircleOutline } from 'ionicons/icons';
 
 // Importa los servicios y tipos
 import * as restaurantService from '../services/restaurantService';
@@ -63,6 +61,16 @@ const MenuPage: React.FC = () => {
         if (!restaurantData) throw new Error("El restaurante que buscas no existe.");
 
         setRestaurant(restaurantData);
+        
+        // Si el restaurante no está disponible, no cargar productos
+        if (restaurantData.status === 'notavailable') {
+          setProducts([]);
+          setCategories([]);
+          setSelectedCategory('');
+          setIsLoading(false);
+          return;
+        }
+
         setProducts(productsData);
 
         // Lógica para establecer las categorías y la categoría inicial
@@ -100,8 +108,43 @@ const MenuPage: React.FC = () => {
     return (item.category || 'Otros') === selectedCategory;
   });
 
-  if (isLoading) { /* ... (sin cambios) */ }
-  if (error) { /* ... (sin cambios) */ }
+  // Renderizar mensaje de restaurante suspendido
+  if (restaurant?.status === 'notavailable') {
+    return (
+      <IonPage>
+        <IonHeader className="ion-no-border">
+          <IonToolbar>
+            <IonButtons slot="start"><IonBackButton defaultHref="/" /></IonButtons>
+            <IonTitle className="font-bold">{restaurant?.name || 'Restaurante'}</IonTitle>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent fullscreen className="ion-padding bg-gray-50">
+          <div className="flex items-center justify-center min-h-full">
+            <IonCard className="max-w-md mx-auto text-center">
+              <IonCardContent className="p-8">
+                <div className="mb-6">
+                  <IonIcon 
+                    icon={pauseCircleOutline} 
+                    className="text-6xl text-orange-500 mb-4" 
+                  />
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    Restaurante Suspendido
+                  </h2>
+                  <IonText color="medium">
+                    <p className="text-gray-600">
+                      {restaurant.name} está temporalmente suspendido. 
+                      No puedes acceder al menú en este momento.
+                    </p>
+                  </IonText>
+                </div>
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   return (
     <IonPage>

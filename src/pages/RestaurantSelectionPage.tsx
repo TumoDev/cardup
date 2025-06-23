@@ -4,12 +4,19 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonList, IonItem,
   IonLabel, IonButton, IonSpinner, IonIcon, IonCard, IonCardContent,
   IonInput, IonToast, IonButtons, IonText, IonAvatar,
-  IonAlert
+  IonAlert, IonModal, IonSkeletonText, IonBadge
 } from '@ionic/react';
-import { businessOutline, addCircleOutline, logOutOutline, chevronForwardOutline, trashOutline } from 'ionicons/icons';
+import {
+  businessOutline, addCircleOutline, logOutOutline, chevronForwardOutline, trashOutline,
+  personCircleOutline, close, personOutline, atOutline, callOutline,
+  checkmarkCircle, pauseCircle, keyOutline
+} from 'ionicons/icons';
 import { logout } from '../services/authService';
 import * as restaurantService from '../services/restaurantService';
 import type { Restaurant, NewRestaurantData } from '../services/restaurantService';
+import * as managerService from '../services/managerService';
+import type { UpdateManagerData } from '../services/managerService';
+import { supabase } from '../utils/supabase';
 
 
 const RestaurantSelectionPage: React.FC = () => {
@@ -21,10 +28,20 @@ const RestaurantSelectionPage: React.FC = () => {
   const [toast, setToast] = useState({ isOpen: false, message: '', color: 'danger' });
 
   const [showDeleteAlert, setShowDeleteAlert] = useState<{
-    isOpen: boolean;
-    restaurantId: string | null;
-    restaurantName: string | null;
+    isOpen: boolean; restaurantId: string | null; restaurantName: string | null;
   }>({ isOpen: false, restaurantId: null, restaurantName: null });
+
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [managerProfile, setManagerProfile] = useState<UpdateManagerData>({});
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
+
+  // Estados para el modal de habilitación
+  const [showEnableModal, setShowEnableModal] = useState(false);
+  const [enableRestaurantData, setEnableRestaurantData] = useState<Restaurant | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const [formData, setFormData] = useState<NewRestaurantData>({
     name: '', description: '', city: '', commune: '', street: '', streetNumber: '',
@@ -54,20 +71,25 @@ const RestaurantSelectionPage: React.FC = () => {
     fetchRestaurants();
   }, [fetchRestaurants]);
 
-  const handleSelectRestaurant = (restaurantId: string) => {
+  const handleSelectRestaurant = (restaurantId: string, restaurant: Restaurant) => {
+    // Verificar si el restaurante está disponible
+    if (restaurant.status === 'notavailable') {
+      // Mostrar modal de habilitación en lugar de toast
+      setEnableRestaurantData(restaurant);
+      setShowEnableModal(true);
+      return;
+    }
+    
     localStorage.setItem('restaurantId', restaurantId);
     history.push(`/dashboard`);
   };
 
-  // --- ✨ SECCIÓN CORREGIDA Y VERIFICADA ---
-  // Esta función ahora está completa y maneja su estado 'isSubmitting' de forma independiente.
   const handleCreateRestaurant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.city.trim() || !formData.street.trim()) {
       setToast({ isOpen: true, message: 'Nombre, ciudad y calle son obligatorios.', color: 'warning' });
       return;
     }
-
     setIsSubmitting(true);
     try {
       await restaurantService.createRestaurant(formData, logoFile);
@@ -76,20 +98,17 @@ const RestaurantSelectionPage: React.FC = () => {
       setFormData({ name: '', description: '', city: '', commune: '', street: '', streetNumber: '' });
       setLogoFile(null);
       setLogoPreview(null);
-      fetchRestaurants(); // Recarga la lista de restaurantes
+      fetchRestaurants();
     } catch (error: any) {
       setToast({ isOpen: true, message: `❌ Error al crear el restaurante: ${error.message}`, color: 'danger' });
     } finally {
-      // Este bloque es ESENCIAL. Se asegura de que el botón de crear se vuelva a habilitar
-      // sin importar si la operación tuvo éxito o falló.
       setIsSubmitting(false);
     }
   };
 
   const handleConfirmDelete = async () => {
     if (!showDeleteAlert.restaurantId) return;
-
-    setIsSubmitting(true); // Usamos el mismo estado para deshabilitar todos los botones
+    setIsSubmitting(true);
     try {
       await restaurantService.deleteRestaurant(showDeleteAlert.restaurantId);
       setToast({ isOpen: true, message: 'Restaurante eliminado correctamente.', color: 'success' });
@@ -97,9 +116,40 @@ const RestaurantSelectionPage: React.FC = () => {
     } catch (error: any) {
       setToast({ isOpen: true, message: `Error al eliminar: ${error.message}`, color: 'danger' });
     } finally {
-      // También es crucial aquí para re-habilitar los botones después de eliminar
       setIsSubmitting(false);
       setShowDeleteAlert({ isOpen: false, restaurantId: null, restaurantName: null });
+    }
+  };
+
+  const handleOpenEditProfile = async () => {
+    setIsProfileLoading(true);
+    setShowEditProfileModal(true);
+    try {
+      const profile = await managerService.getManagerProfile();
+      setManagerProfile({
+        name: profile.name || '',
+        username: profile.username || '',
+        phone_number: profile.phone_number || '',
+      });
+    } catch (error: any) {
+      setToast({ isOpen: true, message: `Error al cargar perfil: ${error.message}`, color: 'danger' });
+      setShowEditProfileModal(false);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProfileSubmitting(true);
+    try {
+      await managerService.updateManagerProfile(managerProfile);
+      setToast({ isOpen: true, message: 'Perfil actualizado con éxito.', color: 'success' });
+      setShowEditProfileModal(false);
+    } catch (error: any) {
+      setToast({ isOpen: true, message: `Error al actualizar: ${error.message}`, color: 'danger' });
+    } finally {
+      setIsProfileSubmitting(false);
     }
   };
 
@@ -108,8 +158,45 @@ const RestaurantSelectionPage: React.FC = () => {
     history.replace('/login');
   };
 
+  const handleEnableRestaurant = async () => {
+    if (!email.trim() || !password.trim()) {
+      setToast({ isOpen: true, message: 'Por favor ingresa email y contraseña', color: 'warning' });
+      return;
+    }
+
+    if (!enableRestaurantData) return;
+
+    setIsAuthenticating(true);
+    try {
+      // Habilitar el restaurante usando la nueva función con autenticación
+      const updatedRestaurant = await restaurantService.activateRestaurantWithAuth(
+        enableRestaurantData.id,
+        email,
+        password
+      );
+      
+      // Actualizar la lista de restaurantes
+      setRestaurants(prev => prev.map(r => 
+        r.id === enableRestaurantData.id ? updatedRestaurant : r
+      ));
+      
+      setToast({ isOpen: true, message: 'Restaurante habilitado exitosamente', color: 'success' });
+      
+      // Cerrar modal y limpiar datos
+      setShowEnableModal(false);
+      setEmail('');
+      setPassword('');
+      setEnableRestaurantData(null);
+
+    } catch (error: any) {
+      setToast({ isOpen: true, message: `Error: ${error.message}`, color: 'danger' });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   const FormField: React.FC<{
-    label: string; value: string; onIonChange: (e: any) => void;
+    label: string; value: string | null; onIonChange: (e: any) => void;
     required?: boolean; type?: string; placeholder?: string;
   }> = ({ label, value, onIonChange, required = false, type = 'text', placeholder = '' }) => (
     <IonItem className="bg-transparent rounded-xl mb-4" lines="none">
@@ -130,6 +217,9 @@ const RestaurantSelectionPage: React.FC = () => {
         <IonToolbar style={{ '--background': '#F8F9FA', '--padding-start': '1rem', '--padding-end': '1rem' }}>
           <IonTitle className="font-semibold text-gray-800">Bienvenido</IonTitle>
           <IonButtons slot="end">
+            <IonButton onClick={handleOpenEditProfile} fill="clear" className="text-gray-600">
+              <IonIcon slot="icon-only" icon={personCircleOutline} />
+            </IonButton>
             <IonButton onClick={handleLogout} fill="clear" className="text-gray-600 capitalize">
               Salir
               <IonIcon slot="end" icon={logOutOutline} />
@@ -158,36 +248,36 @@ const RestaurantSelectionPage: React.FC = () => {
                   {restaurants.length > 0 ? (
                     <IonList lines="none" className="space-y-3">
                       {restaurants.filter(r => r).map((r) => (
-                        <IonItem key={r.id} button detail={false} onClick={() => handleSelectRestaurant(r.id)} className="rounded-xl transition-all hover:shadow-md hover:-translate-y-px hover:bg-gray-50">
+                        <IonItem key={r.id} button detail={false} onClick={() => handleSelectRestaurant(r.id, r)} className="rounded-xl transition-all hover:shadow-md hover:-translate-y-px hover:bg-gray-50">
                           <IonAvatar slot="start" className="w-12 h-12 border-2 border-gray-100 mr-4 bg-gray-200 flex items-center justify-center">
                             {r.logo ? (
-                              <img
-                                src={r.logo}
-                                alt={`Logo de ${r.name}`}
-                                className="object-cover w-full h-full"
-                              />
+                              <img src={r.logo} alt={`Logo de ${r.name}`} className="object-cover w-full h-full" />
                             ) : (
                               <IonIcon icon={businessOutline} className="text-2xl text-gray-500" />
                             )}
                           </IonAvatar>
                           <IonLabel className="py-2">
-                            <h2 className="font-bold text-lg text-gray-800">{r.name}</h2>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h2 className="font-bold text-lg text-gray-800">{r.name}</h2>
+                              {r.status === 'notavailable' && (
+                                <IonBadge 
+                                  color="warning" 
+                                  className="text-xs"
+                                >
+                                  <IonIcon 
+                                    icon={pauseCircle} 
+                                    className="mr-1" 
+                                    size="small"
+                                  />
+                                  Suspendido
+                                </IonBadge>
+                              )}
+                            </div>
                             <p className="text-gray-600 text-sm whitespace-normal">{r.description || 'Sin descripción'}</p>
                           </IonLabel>
-
-                          <IonButton
-                            fill="clear"
-                            color="danger"
-                            slot="end"
-                            disabled={isSubmitting}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowDeleteAlert({ isOpen: true, restaurantId: r.id, restaurantName: r.name });
-                            }}
-                          >
+                          <IonButton fill="clear" color="danger" slot="end" disabled={isSubmitting} onClick={(e) => { e.stopPropagation(); setShowDeleteAlert({ isOpen: true, restaurantId: r.id, restaurantName: r.name }); }}>
                             <IonIcon icon={trashOutline} />
                           </IonButton>
-
                           <IonIcon icon={chevronForwardOutline} slot="end" color="medium" />
                         </IonItem>
                       ))}
@@ -218,21 +308,9 @@ const RestaurantSelectionPage: React.FC = () => {
                       <IonItem className="bg-transparent rounded-xl mb-4" lines="none">
                         <IonLabel position="stacked" className="!mb-2 text-gray-700 font-medium">Logo del Restaurante</IonLabel>
                         <div className="flex items-center w-full gap-4 pt-2">
-                          <IonButton fill="outline" onClick={() => fileInputRef.current?.click()} className="rounded-lg">
-                            Seleccionar Archivo
-                          </IonButton>
-                          <input ref={fileInputRef} type="file" hidden accept="image/png, image/jpeg, image/webp" onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              const file = e.target.files[0];
-                              setLogoFile(file);
-                              setLogoPreview(URL.createObjectURL(file));
-                            }
-                          }} />
-                          {logoPreview ? (<img src={logoPreview} alt="Vista previa" className="w-16 h-16 rounded-lg object-cover border" />) : (
-                            <div className="w-16 h-16 rounded-lg border bg-gray-100 flex items-center justify-center">
-                              <IonIcon icon={businessOutline} className="text-gray-400 text-2xl" />
-                            </div>
-                          )}
+                          <IonButton fill="outline" onClick={() => fileInputRef.current?.click()} className="rounded-lg">Seleccionar Archivo</IonButton>
+                          <input ref={fileInputRef} type="file" hidden accept="image/png, image/jpeg, image/webp" onChange={(e) => { if (e.target.files && e.target.files[0]) { const file = e.target.files[0]; setLogoFile(file); setLogoPreview(URL.createObjectURL(file)); } }} />
+                          {logoPreview ? (<img src={logoPreview} alt="Vista previa" className="w-16 h-16 rounded-lg object-cover border" />) : (<div className="w-16 h-16 rounded-lg border bg-gray-100 flex items-center justify-center"><IonIcon icon={businessOutline} className="text-gray-400 text-2xl" /></div>)}
                         </div>
                       </IonItem>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
@@ -253,27 +331,137 @@ const RestaurantSelectionPage: React.FC = () => {
             </>
           )}
         </div>
+
         <IonToast isOpen={toast.isOpen} message={toast.message} duration={3000} onDidDismiss={() => setToast({ ...toast, isOpen: false })} color={toast.color as any} position="top" />
 
-        <IonAlert
-          isOpen={showDeleteAlert.isOpen}
-          onDidDismiss={() => setShowDeleteAlert({ isOpen: false, restaurantId: null, restaurantName: null })}
-          header={'Confirmar Eliminación'}
-          message={`¿Estás seguro de que quieres eliminar <strong>${showDeleteAlert.restaurantName}</strong>? Esta acción no se puede deshacer.`}
-          buttons={[
-            {
-              text: 'Cancelar',
-              role: 'cancel',
-              cssClass: 'secondary',
-            },
-            {
-              text: 'Eliminar',
-              role: 'destructive',
-              cssClass: 'ion-color-danger',
-              handler: handleConfirmDelete,
-            },
-          ]}
-        />
+        <IonAlert isOpen={showDeleteAlert.isOpen} onDidDismiss={() => setShowDeleteAlert({ isOpen: false, restaurantId: null, restaurantName: null })} header={'Confirmar Eliminación'} message={`¿Estás seguro de que quieres eliminar <strong>${showDeleteAlert.restaurantName}</strong>? Esta acción no se puede deshacer.`} buttons={[{ text: 'Cancelar', role: 'cancel' }, { text: 'Eliminar', role: 'destructive', cssClass: 'ion-color-danger', handler: handleConfirmDelete }]} />
+
+        <IonModal
+          isOpen={showEditProfileModal}
+          onDidDismiss={() => setShowEditProfileModal(false)}
+        >
+          <IonHeader className="ion-no-border">
+            <IonToolbar>
+              <IonTitle className="text-center font-semibold">Editar Mi Perfil</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => setShowEditProfileModal(false)}>
+                  <IonIcon slot="icon-only" icon={close} />
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            {isProfileLoading ? (
+              <div className="space-y-6 mt-4">
+                <div className="flex justify-center">
+                  <IonSkeletonText animated style={{ width: '96px', height: '96px', borderRadius: '50%' }} />
+                </div>
+                <IonItem lines="none" className="bg-gray-100 rounded-xl">
+                  <IonSkeletonText animated style={{ width: '80px', height: '16px', marginBottom: '8px' }} />
+                  <IonSkeletonText animated style={{ width: '100%', height: '48px', borderRadius: '8px' }} />
+                </IonItem>
+                <IonItem lines="none" className="bg-gray-100 rounded-xl">
+                  <IonSkeletonText animated style={{ width: '120px', height: '16px', marginBottom: '8px' }} />
+                  <IonSkeletonText animated style={{ width: '100%', height: '48px', borderRadius: '8px' }} />
+                </IonItem>
+                <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '12px', marginTop: '16px' }} />
+              </div>
+            ) : (
+              <div className="flex flex-col h-full">
+                <div className="flex-grow">
+                  <div className="text-center mb-6">
+                    <IonAvatar className="w-24 h-24 mx-auto bg-blue-100 text-blue-600 mb-2 flex items-center justify-center">
+                      <IonIcon icon={personCircleOutline} className="text-6xl" />
+                    </IonAvatar>
+                  </div>
+                  <form onSubmit={handleUpdateProfile} noValidate>
+                    <IonItem lines="none" className="bg-gray-100 rounded-xl mb-4">
+                      <IonIcon icon={personOutline} slot="start" className="text-gray-500 ml-2" />
+                      <IonLabel position="stacked" className="!ml-2 text-gray-600">Nombre Completo</IonLabel>
+                      <IonInput value={managerProfile.name || ''} onIonChange={e => setManagerProfile({ ...managerProfile, name: e.detail.value! })} placeholder="Tu nombre y apellido" className="custom-input" />
+                    </IonItem>
+                    <IonItem lines="none" className="bg-gray-100 rounded-xl mb-4">
+                      <IonIcon icon={atOutline} slot="start" className="text-gray-500 ml-2" />
+                      <IonLabel position="stacked" className="!ml-2 text-gray-600">Nombre de Usuario</IonLabel>
+                      <IonInput value={managerProfile.username || ''} onIonChange={e => setManagerProfile({ ...managerProfile, username: e.detail.value! })} placeholder="Tu alias público" className="custom-input" />
+                    </IonItem>
+                    <IonItem lines="none" className="bg-gray-100 rounded-xl mb-4">
+                      <IonIcon icon={callOutline} slot="start" className="text-gray-500 ml-2" />
+                      <IonLabel position="stacked" className="!ml-2 text-gray-600">Teléfono</IonLabel>
+                      <IonInput type="tel" value={managerProfile.phone_number || ''} onIonChange={e => setManagerProfile({ ...managerProfile, phone_number: e.detail.value! })} placeholder="+56 9 1234 5678" className="custom-input" />
+                    </IonItem>
+                    <IonButton type="submit" expand="block" className="mt-8 h-14 font-bold rounded-xl" disabled={isProfileSubmitting}>
+                      {isProfileSubmitting ? <IonSpinner name="crescent" /> : 'Guardar Cambios'}
+                    </IonButton>
+                  </form>
+                </div>
+              </div>
+            )}
+          </IonContent>
+        </IonModal>
+
+        <IonModal
+          isOpen={showEnableModal}
+          onDidDismiss={() => setShowEnableModal(false)}
+        >
+          <IonCardContent className="p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">
+              Verificación de Credenciales
+            </h2>
+            <p className="text-gray-600 mb-6 text-center">
+              Para habilitar <strong>{enableRestaurantData?.name}</strong>, 
+              ingresa tus credenciales de manager propietario.
+            </p>
+
+            <IonItem className="mb-4">
+              <IonLabel position="stacked">Email</IonLabel>
+              <IonInput
+                type="email"
+                value={email}
+                onIonChange={(e) => setEmail(e.detail.value!)}
+                placeholder="tu@email.com"
+              />
+            </IonItem>
+
+            <IonItem className="mb-6">
+              <IonLabel position="stacked">Contraseña</IonLabel>
+              <IonInput
+                type="password"
+                value={password}
+                onIonChange={(e) => setPassword(e.detail.value!)}
+                placeholder="••••••••"
+              />
+            </IonItem>
+
+            <div className="flex gap-3">
+              <IonButton
+                expand="block"
+                fill="outline"
+                onClick={() => setShowEnableModal(false)}
+                disabled={isAuthenticating}
+              >
+                Cancelar
+              </IonButton>
+              <IonButton
+                expand="block"
+                onClick={handleEnableRestaurant}
+                disabled={isAuthenticating}
+                color="success"
+              >
+                {isAuthenticating ? (
+                  <IonSpinner name="dots" />
+                ) : (
+                  <>
+                    <IonIcon slot="start" icon={keyOutline} />
+                    Habilitar
+                  </>
+                )}
+              </IonButton>
+            </div>
+          </IonCardContent>
+        </IonModal>
+
+
       </IonContent>
     </IonPage>
   );
